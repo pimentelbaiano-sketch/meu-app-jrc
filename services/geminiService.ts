@@ -3,21 +3,20 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { JRCGame, GenerationRequest } from "../types";
 
 export const generateJRC = async (req: GenerationRequest): Promise<JRCGame> => {
-  // Inicializa o cliente com a chave de API do ambiente
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || "" });
 
-  const systemInstruction = `Você é um Diretor de Metodologia especialista em Periodização Tática e Teoria da Complexidade aplicada ao futebol. 
-  Seu objetivo é projetar Jogos Reduzidos e Condicionados (JRC) que foquem na dimensão tática, mas sem descurar das outras (técnica, física, psicológica).
-  Utilize conceitos como: Densidade de Jogo, Princípios e Sub-princípios de Jogo, Comportamentos Emergentes e Auto-organização.`;
+  const systemInstruction = `Você é um Diretor de Metodologia de Futebol de Elite.
+  Sua especialidade é projetar Jogos Reduzidos e Condicionados (JRC) baseados na Periodização Tática e Teoria da Complexidade.
+  Ao criar a prancheta visual (visualData), forneça sempre 8 jogadores com coordenadas X e Y entre 5 e 95 para garantir que fiquem visíveis no campo.
+  O time A deve atacar da esquerda para a direita, e o time B da direita para a esquerda.`;
 
-  const prompt = `Projete um JRC sistêmico com os seguintes parâmetros:
+  const prompt = `Crie um JRC técnico-tático completo:
     TEMA: ${req.theme}
     CATEGORIA: ${req.category}
-    DURAÇÃO ESTIMADA: ${req.duration}
+    DURAÇÃO: ${req.duration}
     INTENSIDADE: ${req.intensity}
     
-    O resultado deve ser um plano de treino detalhado para um técnico profissional.
-    Inclua dados visuais para 8 jogadores (4 vs 4) simulando um cenário real deste tema.`;
+    O JSON deve conter: title, description, systemicFocus, setup (players, dimensions, materials[]), rules[], visualData (players[] com id, team, label, startX, startY, endX, endY).`;
 
   try {
     const response = await ai.models.generateContent({
@@ -41,8 +40,6 @@ export const generateJRC = async (req: GenerationRequest): Promise<JRCGame> => {
             },
             rules: { type: Type.ARRAY, items: { type: Type.STRING } },
             systemicFocus: { type: Type.STRING },
-            complexityPrinciples: { type: Type.ARRAY, items: { type: Type.STRING } },
-            emergentBehaviors: { type: Type.ARRAY, items: { type: Type.STRING } },
             visualData: {
               type: Type.OBJECT,
               properties: {
@@ -69,19 +66,16 @@ export const generateJRC = async (req: GenerationRequest): Promise<JRCGame> => {
       }
     });
 
-    const text = response.text;
-    if (!text) throw new Error("A IA não retornou conteúdo.");
-    
-    const parsed = JSON.parse(text);
+    const data = JSON.parse(response.text || "{}");
     return {
-      ...parsed,
+      ...data,
       id: Math.random().toString(36).substr(2, 9),
       theme: req.theme,
       category: req.category,
       duration: req.duration
     };
   } catch (error) {
-    console.error("Erro na geração Gemini:", error);
+    console.error("Falha na geração do JRC:", error);
     throw error;
   }
 };
