@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { User, JRCGame, GenerationRequest } from './types';
 import { generateJRC } from './services/geminiService';
@@ -13,8 +13,22 @@ import {
   Download,
   Loader2,
   CheckCircle2,
-  Target
+  Target,
+  History,
+  Trash2,
+  Share2,
+  AlertCircle
 } from 'lucide-react';
+
+const LOADING_MESSAGES = [
+  "Analisando dinâmicas táticas...",
+  "O jogo é um todo indissociável...",
+  "Calculando comportamentos emergentes...",
+  "Provocando a auto-organização...",
+  "Estruturando princípios de jogo...",
+  "Consultando a Periodização Tática...",
+  "Ajustando a densidade do exercício..."
+];
 
 const Navbar: React.FC<{ user: User; onLogout: () => void }> = ({ user, onLogout }) => (
   <nav className="border-b border-white/10 bg-slate-900/80 backdrop-blur-md sticky top-0 z-50 px-6 py-4 flex items-center justify-between print:hidden">
@@ -33,8 +47,27 @@ const Navbar: React.FC<{ user: User; onLogout: () => void }> = ({ user, onLogout
 
 const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(false);
+  const [loadingMsgIdx, setLoadingMsgIdx] = useState(0);
   const [game, setGame] = useState<JRCGame | null>(null);
+  const [history, setHistory] = useState<JRCGame[]>(() => {
+    const saved = localStorage.getItem('soccer_history');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [form, setForm] = useState<GenerationRequest>({ theme: '', category: '', duration: '', intensity: 'medium' });
+
+  useEffect(() => {
+    localStorage.setItem('soccer_history', JSON.stringify(history));
+  }, [history]);
+
+  useEffect(() => {
+    let interval: any;
+    if (loading) {
+      interval = setInterval(() => {
+        setLoadingMsgIdx(prev => (prev + 1) % LOADING_MESSAGES.length);
+      }, 3000);
+    }
+    return () => clearInterval(interval);
+  }, [loading]);
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,18 +75,52 @@ const Dashboard: React.FC = () => {
     try {
       const result = await generateJRC(form);
       setGame(result);
+      setHistory(prev => [result, ...prev].slice(0, 10)); // Mantém os últimos 10
     } catch (e) {
-      alert("Erro ao conectar com a IA. Verifique sua chave API.");
+      alert("Erro ao conectar com a IA. Verifique sua chave API nas configurações da Vercel.");
     } finally {
       setLoading(false);
     }
   };
 
+  const deleteHistoryItem = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setHistory(prev => prev.filter(item => item.id !== id));
+  };
+
+  const handleShare = async () => {
+    if (!game) return;
+    const text = `*JRC: ${game.title}*\n\n*Tema:* ${game.theme}\n*Descrição:* ${game.description}\n\nGerado por Sistêmica Soccer AI`;
+    try {
+      await navigator.share({ title: game.title, text: text });
+    } catch (err) {
+      navigator.clipboard.writeText(text);
+      alert("Conteúdo copiado para a área de transferência!");
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-8 animate-pulse">
+        <div className="relative">
+          <Loader2 className="w-16 h-16 text-emerald-500 animate-spin" />
+          <Zap className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-emerald-400 w-6 h-6" fill="currentColor" />
+        </div>
+        <div className="space-y-2">
+          <p className="text-xl font-black italic text-white uppercase tracking-tighter">
+            {LOADING_MESSAGES[loadingMsgIdx]}
+          </p>
+          <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">Aguarde, estamos construindo a complexidade...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="max-w-7xl mx-auto p-4 sm:p-10 w-full">
+    <div className="max-w-7xl mx-auto p-4 sm:p-10 w-full space-y-12">
       {!game ? (
-        <div className="grid lg:grid-cols-2 gap-10 items-start">
-          <div className="space-y-8">
+        <div className="grid lg:grid-cols-3 gap-10 items-start">
+          <div className="lg:col-span-2 space-y-8">
             <h1 className="text-5xl sm:text-7xl font-black italic tracking-tighter leading-[0.9] uppercase">Projete treinos de <span className="text-emerald-500 underline decoration-white/10">elite</span>.</h1>
             <p className="text-slate-400 text-lg max-w-md">Utilize a ciência da complexidade para criar jogos que provocam inteligência tática automática.</p>
             
@@ -77,17 +144,47 @@ const Dashboard: React.FC = () => {
                   </div>
                 </div>
               </div>
-              <button disabled={loading} className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-5 rounded-2xl flex items-center justify-center gap-3 transition-all disabled:opacity-50">
-                {loading ? <Loader2 className="animate-spin" /> : <Zap fill="currentColor" size={18} />}
-                {loading ? 'SISTEMATIZANDO...' : 'CONSTRUIR JRC AGORA'}
+              <button disabled={loading} className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-5 rounded-2xl flex items-center justify-center gap-3 transition-all shadow-lg shadow-emerald-500/20">
+                <Zap fill="currentColor" size={18} />
+                CONSTRUIR JRC AGORA
               </button>
             </form>
           </div>
-          <div className="hidden lg:flex bg-emerald-500/5 border border-emerald-500/10 p-12 rounded-[3rem] items-center justify-center">
-             <p className="italic text-slate-500 text-2xl text-center leading-relaxed">
-               "No futebol, a forma é a interação."
-             </p>
-          </div>
+
+          <aside className="space-y-6">
+            <div className="bg-slate-800/20 rounded-3xl border border-white/5 p-6">
+              <h3 className="text-xs font-black uppercase text-slate-500 tracking-widest mb-6 flex items-center gap-2">
+                <History size={14} /> Recentes
+              </h3>
+              {history.length === 0 ? (
+                <div className="text-center py-8 opacity-20">
+                  <BookOpen size={40} className="mx-auto mb-2" />
+                  <p className="text-[10px] font-bold">Nenhum treino gerado ainda.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {history.map((item) => (
+                    <div 
+                      key={item.id} 
+                      onClick={() => setGame(item)}
+                      className="group bg-slate-950/50 p-4 rounded-2xl border border-white/5 cursor-pointer hover:border-emerald-500/50 transition-all flex items-center justify-between"
+                    >
+                      <div className="overflow-hidden">
+                        <p className="text-[10px] text-emerald-400 font-black uppercase tracking-tighter truncate">{item.category}</p>
+                        <p className="text-sm font-bold text-white truncate">{item.title}</p>
+                      </div>
+                      <button 
+                        onClick={(e) => deleteHistoryItem(item.id, e)}
+                        className="p-2 opacity-0 group-hover:opacity-100 hover:bg-red-500/10 rounded-lg text-slate-500 hover:text-red-500 transition-all"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </aside>
         </div>
       ) : (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -95,9 +192,14 @@ const Dashboard: React.FC = () => {
             <button onClick={() => setGame(null)} className="text-emerald-400 font-bold text-xs uppercase tracking-widest flex items-center gap-2 hover:underline">
                <ChevronRight className="rotate-180" size={14} /> Voltar ao Painel
             </button>
-            <button onClick={() => window.print()} className="bg-white text-slate-900 px-6 py-3 rounded-xl font-black text-xs flex items-center gap-2">
-              <Download size={14} /> SALVAR PDF
-            </button>
+            <div className="flex gap-2">
+              <button onClick={handleShare} className="bg-slate-800 text-white px-4 py-3 rounded-xl font-black text-xs flex items-center gap-2 hover:bg-slate-700 transition-colors">
+                <Share2 size={14} /> COMPARTILHAR
+              </button>
+              <button onClick={() => window.print()} className="bg-white text-slate-900 px-6 py-3 rounded-xl font-black text-xs flex items-center gap-2">
+                <Download size={14} /> PDF
+              </button>
+            </div>
           </div>
 
           <div className="bg-slate-800/20 border border-white/10 rounded-[3rem] overflow-hidden print:bg-white print:text-black print:border-none">
@@ -108,8 +210,8 @@ const Dashboard: React.FC = () => {
                    <h2 className="text-4xl lg:text-7xl font-black italic tracking-tighter uppercase">{game.title}</h2>
                    <p className="text-slate-500 font-bold tracking-widest uppercase text-xs">{game.theme}</p>
                 </div>
-                <div className="mt-4 sm:mt-0 text-[10px] font-black uppercase text-emerald-400 bg-emerald-400/10 px-4 py-2 rounded-full">
-                  Ficha Técnica Gerada por IA
+                <div className="mt-4 sm:mt-0 flex items-center gap-2 text-[10px] font-black uppercase text-emerald-400 bg-emerald-400/10 px-4 py-2 rounded-full">
+                  <Target size={14} /> Arquitetura Sistêmica
                 </div>
               </header>
 
@@ -143,6 +245,13 @@ const Dashboard: React.FC = () => {
                     <h4 className="text-[10px] font-black uppercase text-emerald-400 mb-4 tracking-widest">Foco Sistêmico</h4>
                     <p className="text-sm text-slate-200 italic font-medium">"{game.systemicFocus}"</p>
                   </div>
+
+                  <div className="bg-slate-800/40 p-6 rounded-3xl border border-white/5 print:hidden">
+                    <h4 className="text-[10px] font-black uppercase text-slate-500 mb-4">Material Necessário</h4>
+                    <ul className="text-xs space-y-2 text-slate-400">
+                      {game.setup.materials?.map((m, i) => <li key={i}>• {m}</li>)}
+                    </ul>
+                  </div>
                 </div>
               </div>
             </div>
@@ -160,7 +269,7 @@ export default function App() {
   });
 
   const login = () => {
-    const u: User = { id: '1', name: 'Treinador Pro', email: 'coach@elite.com', status: 'active' };
+    const u: User = { id: '1', name: 'Coach Pro', email: 'coach@elite.com', status: 'active' };
     setUser(u);
     localStorage.setItem('soccer_user', JSON.stringify(u));
   };
@@ -176,7 +285,7 @@ export default function App() {
           <p className="text-slate-600 text-[10px] font-black uppercase tracking-[0.5em]">The Coach's Artificial Brain</p>
         </div>
         <button onClick={login} className="bg-white text-slate-950 px-16 py-6 rounded-2xl font-black uppercase text-xs tracking-[0.2em] hover:scale-105 transition-all shadow-2xl active:scale-95">
-          Iniciar Sessão Técnica
+          Iniciar Área Técnica
         </button>
       </div>
     </div>
@@ -194,4 +303,3 @@ export default function App() {
     </HashRouter>
   );
 }
-
