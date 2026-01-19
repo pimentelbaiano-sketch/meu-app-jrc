@@ -10,14 +10,15 @@ import {
   BookOpen, 
   ChevronRight, 
   Zap,
-  Download,
   Loader2,
   CheckCircle2,
   Target,
   History,
   Trash2,
   Share2,
-  Printer
+  Printer,
+  AlertTriangle,
+  RefreshCw
 } from 'lucide-react';
 
 const LOADING_MESSAGES = [
@@ -47,6 +48,7 @@ const Navbar: React.FC<{ user: User; onLogout: () => void }> = ({ user, onLogout
 
 const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [loadingMsgIdx, setLoadingMsgIdx] = useState(0);
   const [game, setGame] = useState<JRCGame | null>(null);
   const [history, setHistory] = useState<JRCGame[]>(() => {
@@ -64,7 +66,7 @@ const Dashboard: React.FC = () => {
     if (loading) {
       interval = setInterval(() => {
         setLoadingMsgIdx(prev => (prev + 1) % LOADING_MESSAGES.length);
-      }, 3000);
+      }, 2500);
     }
     return () => clearInterval(interval);
   }, [loading]);
@@ -72,13 +74,14 @@ const Dashboard: React.FC = () => {
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError(null);
     try {
       const result = await generateJRC(form);
       setGame(result);
       setHistory(prev => [result, ...prev].slice(0, 10));
-    } catch (e) {
-      console.error(e);
-      alert("Erro ao conectar com a IA. Verifique sua chave API.");
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || "Não foi possível gerar o treino. Tente novamente.");
     } finally {
       setLoading(false);
     }
@@ -91,39 +94,31 @@ const Dashboard: React.FC = () => {
 
   const handleShare = async () => {
     if (!game) return;
-    const shareText = `*PLANO DE TREINO: ${game.title}*\n\n*Tema:* ${game.theme}\n*Foco:* ${game.systemicFocus}\n\n*Regras:* \n${game.rules.map(r => `- ${r}`).join('\n')}\n\nGerado via Sistêmica Soccer`;
-    
+    const shareText = `*JRC: ${game.title}*\n\n*Tema:* ${game.theme}\n*Foco:* ${game.systemicFocus}\n\nGerado via Sistêmica Soccer`;
     if (navigator.share) {
-      try {
-        await navigator.share({
-          title: game.title,
-          text: shareText,
-        });
-      } catch (err) {
-        copyToClipboard(shareText);
-      }
-    } else {
-      copyToClipboard(shareText);
-    }
+      try { await navigator.share({ title: game.title, text: shareText }); } catch (err) { copyToClipboard(shareText); }
+    } else { copyToClipboard(shareText); }
   };
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
-    alert("Conteúdo copiado para a área de transferência!");
+    alert("Copiado!");
   };
 
   if (loading) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-8 animate-pulse">
+      <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-8 min-h-[60vh]">
         <div className="relative">
           <Loader2 className="w-16 h-16 text-emerald-500 animate-spin" />
-          <Zap className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-emerald-400 w-6 h-6" fill="currentColor" />
+          <Zap className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-emerald-400 w-6 h-6 animate-pulse" fill="currentColor" />
         </div>
-        <div className="space-y-2">
-          <p className="text-xl font-black italic text-white uppercase tracking-tighter">
+        <div className="space-y-2 max-w-xs mx-auto">
+          <p className="text-xl font-black italic text-white uppercase tracking-tighter transition-all">
             {LOADING_MESSAGES[loadingMsgIdx]}
           </p>
-          <p className="text-slate-500 text-xs font-bold uppercase tracking-widest italic">Processando arquitetura de jogo...</p>
+          <div className="w-full bg-white/5 h-1 rounded-full overflow-hidden">
+            <div className="bg-emerald-500 h-full animate-progress-fast"></div>
+          </div>
         </div>
       </div>
     );
@@ -132,15 +127,34 @@ const Dashboard: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto p-4 sm:p-10 w-full space-y-12">
       <style>{`
+        @keyframes progress-fast {
+          0% { width: 0%; }
+          100% { width: 100%; }
+        }
+        .animate-progress-fast { animation: progress-fast 2.5s infinite linear; }
         @media print {
           body { background: white !important; color: black !important; }
           .print-container { border: none !important; box-shadow: none !important; background: white !important; padding: 0 !important; }
-          .print-text { color: #1e293b !important; }
           .bg-emerald-900 { background-color: #064e3b !important; -webkit-print-color-adjust: exact; }
           .bg-blue-600 { background-color: #2563eb !important; -webkit-print-color-adjust: exact; }
           .bg-red-600 { background-color: #dc2626 !important; -webkit-print-color-adjust: exact; }
         }
       `}</style>
+
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/20 p-6 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 animate-in fade-in slide-in-from-top-4">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="text-red-500" />
+            <div>
+              <p className="text-sm font-bold text-red-500">Ops! Algo deu errado.</p>
+              <p className="text-xs text-red-400/80">{error}</p>
+            </div>
+          </div>
+          <button onClick={() => setError(null)} className="text-xs font-black uppercase tracking-widest bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors flex items-center gap-2">
+            <RefreshCw size={12} /> Tentar Novamente
+          </button>
+        </div>
+      )}
 
       {!game ? (
         <div className="grid lg:grid-cols-3 gap-10 items-start">
@@ -152,25 +166,25 @@ const Dashboard: React.FC = () => {
               <div className="grid grid-cols-1 gap-4">
                 <div className="space-y-2">
                   <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">O que quer treinar?</label>
-                  <input required placeholder="Ex: Transição Defensiva Rápida" className="w-full bg-slate-950 border border-white/10 rounded-2xl px-5 py-4 text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all" 
+                  <input required placeholder="Ex: Pressão no Bloco Alto" className="w-full bg-slate-950 border border-white/10 rounded-2xl px-5 py-4 text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all" 
                     onChange={e => setForm({...form, theme: e.target.value})} />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">Categoria</label>
-                    <input required placeholder="Ex: Sub-17" className="w-full bg-slate-950 border border-white/10 rounded-2xl px-5 py-4 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" 
+                    <input required placeholder="Ex: Sub-20" className="w-full bg-slate-950 border border-white/10 rounded-2xl px-5 py-4 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" 
                       onChange={e => setForm({...form, category: e.target.value})} />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">Tempo de Sessão</label>
-                    <input required placeholder="Ex: 15 min" className="w-full bg-slate-950 border border-white/10 rounded-2xl px-5 py-4 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" 
+                    <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">Duração</label>
+                    <input required placeholder="Ex: 20 min" className="w-full bg-slate-950 border border-white/10 rounded-2xl px-5 py-4 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" 
                       onChange={e => setForm({...form, duration: e.target.value})} />
                   </div>
                 </div>
               </div>
               <button disabled={loading} className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-5 rounded-2xl flex items-center justify-center gap-3 transition-all shadow-lg shadow-emerald-500/20 active:scale-95">
                 <Zap fill="currentColor" size={18} />
-                GERAR EXERCÍCIO SISTÊMICO
+                {loading ? "CONSTRUINDO..." : "GERAR EXERCÍCIO SISTÊMICO"}
               </button>
             </form>
           </div>
@@ -188,19 +202,12 @@ const Dashboard: React.FC = () => {
               ) : (
                 <div className="space-y-3">
                   {history.map((item) => (
-                    <div 
-                      key={item.id} 
-                      onClick={() => setGame(item)}
-                      className="group bg-slate-950/50 p-4 rounded-2xl border border-white/5 cursor-pointer hover:border-emerald-500/50 transition-all flex items-center justify-between"
-                    >
+                    <div key={item.id} onClick={() => setGame(item)} className="group bg-slate-950/50 p-4 rounded-2xl border border-white/5 cursor-pointer hover:border-emerald-500/50 transition-all flex items-center justify-between">
                       <div className="overflow-hidden">
                         <p className="text-[10px] text-emerald-400 font-black uppercase tracking-tighter truncate">{item.category}</p>
                         <p className="text-sm font-bold text-white truncate">{item.title}</p>
                       </div>
-                      <button 
-                        onClick={(e) => deleteHistoryItem(item.id, e)}
-                        className="p-2 opacity-0 group-hover:opacity-100 hover:bg-red-500/10 rounded-lg text-slate-500 hover:text-red-500 transition-all"
-                      >
+                      <button onClick={(e) => deleteHistoryItem(item.id, e)} className="p-2 opacity-0 group-hover:opacity-100 hover:bg-red-500/10 rounded-lg text-slate-500 hover:text-red-500 transition-all">
                         <Trash2 size={14} />
                       </button>
                     </div>
@@ -214,7 +221,7 @@ const Dashboard: React.FC = () => {
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="flex justify-between items-end print:hidden">
             <button onClick={() => setGame(null)} className="text-emerald-400 font-bold text-xs uppercase tracking-widest flex items-center gap-2 hover:underline">
-               <ChevronRight className="rotate-180" size={14} /> Painel Inicial
+               <ChevronRight className="rotate-180" size={14} /> Voltar ao Painel
             </button>
             <div className="flex gap-2">
               <button onClick={handleShare} className="bg-slate-800 text-white px-4 py-3 rounded-xl font-black text-[10px] flex items-center gap-2 hover:bg-slate-700 transition-colors">
@@ -245,7 +252,7 @@ const Dashboard: React.FC = () => {
                     <h3 className="text-emerald-400 font-black text-xs uppercase tracking-widest mb-6 flex items-center gap-2 print:text-slate-900 print:mb-2">
                       <BookOpen size={16} /> Dinâmica do Exercício
                     </h3>
-                    <p className="print-text text-slate-300 leading-relaxed text-lg print:text-sm">{game.description}</p>
+                    <p className="text-slate-300 leading-relaxed text-lg print:text-black print:text-sm">{game.description}</p>
                   </section>
                   
                   <section className="bg-slate-950/50 p-8 rounded-3xl border border-white/5 print:bg-slate-50 print:border-slate-300 print:p-6">
@@ -302,9 +309,7 @@ export default function App() {
 
   if (!user) return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-slate-950 p-6 overflow-hidden relative">
-      {/* Background Decorativo */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-emerald-500/5 rounded-full blur-[120px] pointer-events-none"></div>
-      
       <div className="text-center space-y-10 animate-in fade-in zoom-in duration-700 relative z-10">
         <div className="inline-block p-10 bg-emerald-500 rounded-[3.5rem] shadow-[0_0_100px_rgba(16,185,129,0.2)] hover:rotate-3 transition-transform">
           <Trophy size={70} className="text-slate-950" />
