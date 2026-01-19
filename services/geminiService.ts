@@ -3,24 +3,24 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { JRCGame, GenerationRequest } from "../types";
 
 export const generateJRC = async (req: GenerationRequest): Promise<JRCGame> => {
+  // Inicialização direta com a chave de ambiente
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || "" });
 
-  const systemInstruction = `Você é um Diretor de Metodologia de Futebol de Elite.
-  Sua especialidade é projetar Jogos Reduzidos e Condicionados (JRC) baseados na Periodização Tática e Teoria da Complexidade.
-  Ao criar a prancheta visual (visualData), forneça sempre 8 jogadores com coordenadas X e Y entre 5 e 95 para garantir que fiquem visíveis no campo.
-  O time A deve atacar da esquerda para a direita, e o time B da direita para a esquerda.`;
+  const systemInstruction = `Você é um Diretor de Metodologia de Futebol especialista em Periodização Tática. 
+  Sua tarefa é projetar Jogos Reduzidos e Condicionados (JRC) sistêmicos.
+  IMPORTANTE: Retorne APENAS o JSON, sem markdown ou explicações extras.
+  As coordenadas startX, startY, endX, endY devem ser números entre 5 e 95.`;
 
-  const prompt = `Crie um JRC técnico-tático completo:
-    TEMA: ${req.theme}
-    CATEGORIA: ${req.category}
-    DURAÇÃO: ${req.duration}
-    INTENSIDADE: ${req.intensity}
-    
-    O JSON deve conter: title, description, systemicFocus, setup (players, dimensions, materials[]), rules[], visualData (players[] com id, team, label, startX, startY, endX, endY).`;
+  const prompt = `Gere um JRC completo em formato JSON para o tema: "${req.theme}".
+    Categoria: ${req.category}.
+    Duração: ${req.duration}.
+    Intensidade: ${req.intensity}.
+    Inclua 8 jogadores no campo (visualData.players) com posições iniciais e finais que façam sentido tático para o tema.`;
 
   try {
+    console.log("Iniciando geração com Gemini Flash...");
     const response = await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
+      model: "gemini-3-flash-preview", // Modelo mais rápido e responsivo
       contents: prompt,
       config: {
         systemInstruction,
@@ -66,7 +66,11 @@ export const generateJRC = async (req: GenerationRequest): Promise<JRCGame> => {
       }
     });
 
-    const data = JSON.parse(response.text || "{}");
+    const text = response.text;
+    if (!text) throw new Error("Resposta vazia da IA.");
+    
+    console.log("Geração concluída com sucesso.");
+    const data = JSON.parse(text);
     return {
       ...data,
       id: Math.random().toString(36).substr(2, 9),
@@ -74,8 +78,8 @@ export const generateJRC = async (req: GenerationRequest): Promise<JRCGame> => {
       category: req.category,
       duration: req.duration
     };
-  } catch (error) {
-    console.error("Falha na geração do JRC:", error);
-    throw error;
+  } catch (error: any) {
+    console.error("Erro detalhado na geração:", error);
+    throw new Error(error.message || "Falha na comunicação com o cérebro da IA.");
   }
 };
