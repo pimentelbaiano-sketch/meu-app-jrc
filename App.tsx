@@ -17,7 +17,7 @@ import {
   History,
   Trash2,
   Share2,
-  AlertCircle
+  Printer
 } from 'lucide-react';
 
 const LOADING_MESSAGES = [
@@ -75,9 +75,10 @@ const Dashboard: React.FC = () => {
     try {
       const result = await generateJRC(form);
       setGame(result);
-      setHistory(prev => [result, ...prev].slice(0, 10)); // Mantém os últimos 10
+      setHistory(prev => [result, ...prev].slice(0, 10));
     } catch (e) {
-      alert("Erro ao conectar com a IA. Verifique sua chave API nas configurações da Vercel.");
+      console.error(e);
+      alert("Erro ao conectar com a IA. Verifique sua chave API.");
     } finally {
       setLoading(false);
     }
@@ -90,13 +91,25 @@ const Dashboard: React.FC = () => {
 
   const handleShare = async () => {
     if (!game) return;
-    const text = `*JRC: ${game.title}*\n\n*Tema:* ${game.theme}\n*Descrição:* ${game.description}\n\nGerado por Sistêmica Soccer AI`;
-    try {
-      await navigator.share({ title: game.title, text: text });
-    } catch (err) {
-      navigator.clipboard.writeText(text);
-      alert("Conteúdo copiado para a área de transferência!");
+    const shareText = `*PLANO DE TREINO: ${game.title}*\n\n*Tema:* ${game.theme}\n*Foco:* ${game.systemicFocus}\n\n*Regras:* \n${game.rules.map(r => `- ${r}`).join('\n')}\n\nGerado via Sistêmica Soccer`;
+    
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: game.title,
+          text: shareText,
+        });
+      } catch (err) {
+        copyToClipboard(shareText);
+      }
+    } else {
+      copyToClipboard(shareText);
     }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    alert("Conteúdo copiado para a área de transferência!");
   };
 
   if (loading) {
@@ -110,7 +123,7 @@ const Dashboard: React.FC = () => {
           <p className="text-xl font-black italic text-white uppercase tracking-tighter">
             {LOADING_MESSAGES[loadingMsgIdx]}
           </p>
-          <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">Aguarde, estamos construindo a complexidade...</p>
+          <p className="text-slate-500 text-xs font-bold uppercase tracking-widest italic">Processando arquitetura de jogo...</p>
         </div>
       </div>
     );
@@ -118,6 +131,17 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto p-4 sm:p-10 w-full space-y-12">
+      <style>{`
+        @media print {
+          body { background: white !important; color: black !important; }
+          .print-container { border: none !important; box-shadow: none !important; background: white !important; padding: 0 !important; }
+          .print-text { color: #1e293b !important; }
+          .bg-emerald-900 { background-color: #064e3b !important; -webkit-print-color-adjust: exact; }
+          .bg-blue-600 { background-color: #2563eb !important; -webkit-print-color-adjust: exact; }
+          .bg-red-600 { background-color: #dc2626 !important; -webkit-print-color-adjust: exact; }
+        }
+      `}</style>
+
       {!game ? (
         <div className="grid lg:grid-cols-3 gap-10 items-start">
           <div className="lg:col-span-2 space-y-8">
@@ -138,15 +162,15 @@ const Dashboard: React.FC = () => {
                       onChange={e => setForm({...form, category: e.target.value})} />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">Tempo</label>
+                    <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">Tempo de Sessão</label>
                     <input required placeholder="Ex: 15 min" className="w-full bg-slate-950 border border-white/10 rounded-2xl px-5 py-4 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" 
                       onChange={e => setForm({...form, duration: e.target.value})} />
                   </div>
                 </div>
               </div>
-              <button disabled={loading} className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-5 rounded-2xl flex items-center justify-center gap-3 transition-all shadow-lg shadow-emerald-500/20">
+              <button disabled={loading} className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-5 rounded-2xl flex items-center justify-center gap-3 transition-all shadow-lg shadow-emerald-500/20 active:scale-95">
                 <Zap fill="currentColor" size={18} />
-                CONSTRUIR JRC AGORA
+                GERAR EXERCÍCIO SISTÊMICO
               </button>
             </form>
           </div>
@@ -154,12 +178,12 @@ const Dashboard: React.FC = () => {
           <aside className="space-y-6">
             <div className="bg-slate-800/20 rounded-3xl border border-white/5 p-6">
               <h3 className="text-xs font-black uppercase text-slate-500 tracking-widest mb-6 flex items-center gap-2">
-                <History size={14} /> Recentes
+                <History size={14} /> Histórico Recente
               </h3>
               {history.length === 0 ? (
                 <div className="text-center py-8 opacity-20">
                   <BookOpen size={40} className="mx-auto mb-2" />
-                  <p className="text-[10px] font-bold">Nenhum treino gerado ainda.</p>
+                  <p className="text-[10px] font-bold">Nenhum treino salvo.</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -190,46 +214,46 @@ const Dashboard: React.FC = () => {
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="flex justify-between items-end print:hidden">
             <button onClick={() => setGame(null)} className="text-emerald-400 font-bold text-xs uppercase tracking-widest flex items-center gap-2 hover:underline">
-               <ChevronRight className="rotate-180" size={14} /> Voltar ao Painel
+               <ChevronRight className="rotate-180" size={14} /> Painel Inicial
             </button>
             <div className="flex gap-2">
-              <button onClick={handleShare} className="bg-slate-800 text-white px-4 py-3 rounded-xl font-black text-xs flex items-center gap-2 hover:bg-slate-700 transition-colors">
+              <button onClick={handleShare} className="bg-slate-800 text-white px-4 py-3 rounded-xl font-black text-[10px] flex items-center gap-2 hover:bg-slate-700 transition-colors">
                 <Share2 size={14} /> COMPARTILHAR
               </button>
-              <button onClick={() => window.print()} className="bg-white text-slate-900 px-6 py-3 rounded-xl font-black text-xs flex items-center gap-2">
-                <Download size={14} /> PDF
+              <button onClick={() => window.print()} className="bg-white text-slate-900 px-6 py-3 rounded-xl font-black text-[10px] flex items-center gap-2 hover:bg-slate-200 transition-all active:scale-95 shadow-xl">
+                <Printer size={14} /> IMPRIMIR / PDF
               </button>
             </div>
           </div>
 
-          <div className="bg-slate-800/20 border border-white/10 rounded-[3rem] overflow-hidden print:bg-white print:text-black print:border-none">
-            <div className="p-8 lg:p-16 space-y-12">
-              <header className="border-b border-white/10 pb-8 flex flex-col sm:flex-row justify-between items-start print:border-slate-200">
+          <div className="print-container bg-slate-800/20 border border-white/10 rounded-[3rem] overflow-hidden print:bg-white print:text-black">
+            <div className="p-8 lg:p-16 space-y-12 print:p-0 print:space-y-8">
+              <header className="border-b border-white/10 pb-8 flex flex-col sm:flex-row justify-between items-start print:border-slate-300 print:pb-4">
                 <div className="space-y-2">
-                   <span className="text-emerald-400 font-black text-[10px] uppercase tracking-[0.3em]">{game.category} • {game.duration}</span>
-                   <h2 className="text-4xl lg:text-7xl font-black italic tracking-tighter uppercase">{game.title}</h2>
-                   <p className="text-slate-500 font-bold tracking-widest uppercase text-xs">{game.theme}</p>
+                   <span className="text-emerald-400 font-black text-[10px] uppercase tracking-[0.3em] print:text-emerald-700">{game.category} • {game.duration}</span>
+                   <h2 className="text-4xl lg:text-7xl font-black italic tracking-tighter uppercase print:text-5xl print:text-slate-900">{game.title}</h2>
+                   <p className="text-slate-500 font-bold tracking-widest uppercase text-xs print:text-slate-600">{game.theme}</p>
                 </div>
-                <div className="mt-4 sm:mt-0 flex items-center gap-2 text-[10px] font-black uppercase text-emerald-400 bg-emerald-400/10 px-4 py-2 rounded-full">
-                  <Target size={14} /> Arquitetura Sistêmica
+                <div className="mt-4 sm:mt-0 flex items-center gap-2 text-[10px] font-black uppercase text-emerald-400 bg-emerald-400/10 px-4 py-2 rounded-full print:bg-slate-100 print:text-slate-800">
+                  <Target size={14} /> Documento Técnico
                 </div>
               </header>
 
-              <div className="grid lg:grid-cols-3 gap-16">
-                <div className="lg:col-span-2 space-y-12">
+              <div className="grid lg:grid-cols-3 gap-16 print:grid-cols-1 print:gap-8">
+                <div className="lg:col-span-2 space-y-12 print:space-y-6">
                   <section>
-                    <h3 className="text-emerald-400 font-black text-xs uppercase tracking-widest mb-6 flex items-center gap-2">
-                      <BookOpen size={16} /> Dinâmica e Objetivos
+                    <h3 className="text-emerald-400 font-black text-xs uppercase tracking-widest mb-6 flex items-center gap-2 print:text-slate-900 print:mb-2">
+                      <BookOpen size={16} /> Dinâmica do Exercício
                     </h3>
-                    <p className="text-slate-300 leading-relaxed text-lg print:text-slate-700">{game.description}</p>
+                    <p className="print-text text-slate-300 leading-relaxed text-lg print:text-sm">{game.description}</p>
                   </section>
                   
-                  <section className="bg-slate-950/50 p-8 rounded-3xl border border-white/5 print:bg-slate-50 print:border-slate-200">
-                    <h3 className="text-amber-400 font-black text-xs uppercase tracking-widest mb-6">Regras de Provocação (Condicionantes)</h3>
-                    <div className="grid gap-4">
+                  <section className="bg-slate-950/50 p-8 rounded-3xl border border-white/5 print:bg-slate-50 print:border-slate-300 print:p-6">
+                    <h3 className="text-amber-400 font-black text-xs uppercase tracking-widest mb-6 print:text-slate-900 print:mb-3">Regras de Condicionamento</h3>
+                    <div className="grid gap-4 print:gap-2">
                       {game.rules.map((r, i) => (
-                        <div key={i} className="flex gap-4 items-start text-sm text-slate-400 print:text-slate-800">
-                          <CheckCircle2 size={18} className="text-emerald-500 mt-1 flex-shrink-0" />
+                        <div key={i} className="flex gap-4 items-start text-sm text-slate-400 print:text-slate-800 print:text-xs">
+                          <CheckCircle2 size={18} className="text-emerald-500 mt-1 flex-shrink-0 print:w-4 print:h-4" />
                           <span>{r}</span>
                         </div>
                       ))}
@@ -237,19 +261,21 @@ const Dashboard: React.FC = () => {
                   </section>
                 </div>
 
-                <div className="space-y-10">
-                  <SoccerPitch dimensions={game.setup.dimensions} playersCount={game.setup.players} visualData={game.visualData} />
+                <div className="space-y-10 print:space-y-6">
+                  <div className="print:break-inside-avoid">
+                    <SoccerPitch dimensions={game.setup.dimensions} playersCount={game.setup.players} visualData={game.visualData} />
+                  </div>
                   
-                  <div className="bg-emerald-500/10 p-8 rounded-[2rem] border border-emerald-500/20 relative overflow-hidden">
-                    <Target className="absolute -right-4 -bottom-4 text-emerald-500/10 w-24 h-24" />
-                    <h4 className="text-[10px] font-black uppercase text-emerald-400 mb-4 tracking-widest">Foco Sistêmico</h4>
-                    <p className="text-sm text-slate-200 italic font-medium">"{game.systemicFocus}"</p>
+                  <div className="bg-emerald-500/10 p-8 rounded-[2rem] border border-emerald-500/20 relative overflow-hidden print:bg-slate-100 print:border-slate-300 print:p-6">
+                    <Target className="absolute -right-4 -bottom-4 text-emerald-500/10 w-24 h-24 print:hidden" />
+                    <h4 className="text-[10px] font-black uppercase text-emerald-400 mb-4 tracking-widest print:text-slate-900 print:mb-2">Foco do Treinador</h4>
+                    <p className="text-sm text-slate-200 italic font-medium print:text-slate-800 print:text-xs">"{game.systemicFocus}"</p>
                   </div>
 
                   <div className="bg-slate-800/40 p-6 rounded-3xl border border-white/5 print:hidden">
-                    <h4 className="text-[10px] font-black uppercase text-slate-500 mb-4">Material Necessário</h4>
+                    <h4 className="text-[10px] font-black uppercase text-slate-500 mb-4">Recursos</h4>
                     <ul className="text-xs space-y-2 text-slate-400">
-                      {game.setup.materials?.map((m, i) => <li key={i}>• {m}</li>)}
+                      {game.setup.materials?.map((m, i) => <li key={i} className="flex items-center gap-2"><span>•</span> {m}</li>)}
                     </ul>
                   </div>
                 </div>
@@ -269,23 +295,27 @@ export default function App() {
   });
 
   const login = () => {
-    const u: User = { id: '1', name: 'Coach Pro', email: 'coach@elite.com', status: 'active' };
+    const u: User = { id: '1', name: 'Coach Elite', email: 'coach@elite.com', status: 'active' };
     setUser(u);
     localStorage.setItem('soccer_user', JSON.stringify(u));
   };
 
   if (!user) return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-slate-950 p-6">
-      <div className="text-center space-y-10 animate-in fade-in zoom-in duration-700">
-        <div className="inline-block p-8 bg-emerald-500 rounded-[3rem] shadow-[0_0_80px_rgba(16,185,129,0.2)]">
-          <Trophy size={60} className="text-slate-950" />
+    <div className="min-h-screen flex flex-col items-center justify-center bg-slate-950 p-6 overflow-hidden relative">
+      {/* Background Decorativo */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-emerald-500/5 rounded-full blur-[120px] pointer-events-none"></div>
+      
+      <div className="text-center space-y-10 animate-in fade-in zoom-in duration-700 relative z-10">
+        <div className="inline-block p-10 bg-emerald-500 rounded-[3.5rem] shadow-[0_0_100px_rgba(16,185,129,0.2)] hover:rotate-3 transition-transform">
+          <Trophy size={70} className="text-slate-950" />
         </div>
         <div className="space-y-3">
           <h1 className="text-5xl font-black italic tracking-tighter uppercase">SISTÊMICA <span className="text-emerald-400">SOCCER</span></h1>
-          <p className="text-slate-600 text-[10px] font-black uppercase tracking-[0.5em]">The Coach's Artificial Brain</p>
+          <p className="text-slate-600 text-[10px] font-black uppercase tracking-[0.5em]">Tactical Intelligence Platform</p>
         </div>
-        <button onClick={login} className="bg-white text-slate-950 px-16 py-6 rounded-2xl font-black uppercase text-xs tracking-[0.2em] hover:scale-105 transition-all shadow-2xl active:scale-95">
-          Iniciar Área Técnica
+        <button onClick={login} className="group bg-white text-slate-950 px-16 py-6 rounded-2xl font-black uppercase text-xs tracking-[0.2em] hover:bg-emerald-400 transition-all shadow-2xl active:scale-95 flex items-center gap-4 mx-auto">
+          Acessar Área Técnica
+          <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />
         </button>
       </div>
     </div>
@@ -293,7 +323,7 @@ export default function App() {
 
   return (
     <HashRouter>
-      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-emerald-500 selection:text-slate-950">
         <Navbar user={user} onLogout={() => { setUser(null); localStorage.removeItem('soccer_user'); }} />
         <Routes>
           <Route path="/" element={<Dashboard />} />
